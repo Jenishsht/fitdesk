@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # FitDesk — Multi-tenant Gym Management SaaS
 
 Next.js 15 (App Router) · TypeScript · Tailwind CSS 4 · shadcn/ui-style components · Prisma 7 + PostgreSQL · Auth.js v5
@@ -45,3 +46,7 @@ Deploy: import the repo in Vercel, set `DATABASE_URL`, `AUTH_SECRET`, then run `
 Done: auth + gym registration, tenant guard, RBAC, dashboard (real DB stats + charts), members (search/filter/pagination/CSV), plans, memberships (new + renewal history), payments (manual), manual attendance, member portal home, super-admin overview, full schema for everything in the spec.
 
 Next phases (schema is already in place): forgot/reset password + email verification, staff management UI, QR check-in, reports page + date-range filters, PDF receipts, expiry cron + WhatsApp Cloud API sender (NotificationLog dedupe key is ready), SaaS plan/pricing admin, gym settings page, remaining member-portal pages, cloudinary uploads.
+=======
+# fitdesk
+gym management 
+>>>>>>> 30c79db7be1f11be16165cd6fca03aca0d7e864f
