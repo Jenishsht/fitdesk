@@ -137,6 +137,7 @@ model Gym {
   notifications NotificationLog[]
   subscriptions GymSubscription[]
   auditLogs     AuditLog[]
+  checkinCode String? @unique
 }
 
 model GymUser {
@@ -217,6 +218,7 @@ model Membership {
   renewedFromId String?
   cancelledAt   DateTime?
   suspendedAt   DateTime?
+  frozenDays    Int       @default(0)
   createdAt     DateTime  @default(now())
 
   gym         Gym            @relation(fields: [gymId], references: [id], onDelete: Cascade)

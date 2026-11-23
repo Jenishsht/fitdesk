@@ -1,6 +1,6 @@
 import { todayNepal } from "./utils";
 
-export type MembershipState = "ACTIVE" | "EXPIRED" | "CANCELLED" | "SUSPENDED" | "UPCOMING";
+export type MembershipState = "ACTIVE" | "EXPIRED" | "CANCELLED" | "FROZEN" | "UPCOMING";
 
 /** Membership validity is derived from dates, never from an editable status field. */
 export function membershipState(
@@ -8,7 +8,7 @@ export function membershipState(
   today = todayNepal(),
 ): MembershipState {
   if (m.cancelledAt) return "CANCELLED";
-  if (m.suspendedAt) return "SUSPENDED";
+  if (m.suspendedAt) return "FROZEN";
   if (m.endDate < today) return "EXPIRED";
   if (m.startDate > today) return "UPCOMING";
   return "ACTIVE";

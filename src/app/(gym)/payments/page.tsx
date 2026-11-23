@@ -117,7 +117,7 @@ export default async function PaymentsPage() {
               </TBody>
             </Table>
           </div>
-        )};
+        )}
       </Card>
     </div>
   );

@@ -1,6 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 
-const PUBLIC = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email"];
+const PUBLIC = ["/login", "/register", "/forgot-password", "/reset-password", "/verify-email", "/checkin"];
 
 export const authConfig = {
   trustHost: true,

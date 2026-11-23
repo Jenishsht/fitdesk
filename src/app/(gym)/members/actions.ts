@@ -5,6 +5,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireGym } from "@/lib/session";
 import { addDaysUTC, todayNepal } from "@/lib/utils";
+import { daysBetween } from "@/lib/days";
+import { saveMemberPhoto } from "@/lib/upload";
 import type { FormState } from "@/components/action-form";
 
 const memberSchema = z.object({
@@ -25,8 +27,12 @@ export async function createMemberAction(_: FormState, fd: FormData): Promise<Fo
   const d = parsed.data;
   const dup = await db.member.findUnique({ where: { gymId_phone: { gymId: ctx.gymId, phone: d.phone } } });
   if (dup) return { error: "A member with this phone number already exists." };
+
+  const photo = await saveMemberPhoto(fd.get("photo"));
+  if (photo.error) return { error: photo.error };
+
   const m = await db.member.create({
-    data: { ...d, email: d.email || null, gymId: ctx.gymId, joinedAt: todayNepal() },
+    data: { ...d, email: d.email || null, photoUrl: photo.url ?? null, gymId: ctx.gymId, joinedAt: todayNepal() },
   });
   revalidatePath("/members");
   redirect(`/members/${m.id}`);
@@ -39,6 +45,7 @@ export async function setMemberStatusAction(memberId: string, status: "ACTIVE" |
   await db.member.updateMany({ where: { id: memberId, gymId: ctx.gymId }, data: { status } });
   revalidatePath(`/members/${memberId}`);
   revalidatePath("/members");
+  revalidatePath("/dashboard");
 }
 
 const assignSchema = z.object({
@@ -93,6 +100,7 @@ export async function assignMembershipAction(_: FormState, fd: FormData): Promis
   });
 
   revalidatePath(`/members/${member.id}`);
+  revalidatePath("/dashboard");
   return { ok: "Membership saved." };
 }
 
@@ -132,4 +140,59 @@ export async function recordPaymentAction(_: FormState, fd: FormData): Promise<F
   revalidatePath("/payments");
   revalidatePath("/members");
   return { ok: "Payment recorded." };
+}
+
+/** Freeze: stop the clock. The end date stays as it is until the member resumes. */
+export async function freezeMembershipAction(membershipId: string) {
+  const ctx = await requireGym();
+  ctx.assert("members.manage");
+  const today = todayNepal();
+
+  const ms = await db.membership.findFirst({
+    where: { id: membershipId, gymId: ctx.gymId, cancelledAt: null, suspendedAt: null, endDate: { gte: today } },
+  });
+  if (!ms) return;
+
+  await db.$transaction([
+    db.membership.update({ where: { id: ms.id }, data: { suspendedAt: new Date() } }),
+    db.auditLog.create({
+      data: { gymId: ctx.gymId, userId: ctx.user.id, action: "membership.freeze", entity: "Membership", entityId: ms.id },
+    }),
+  ]);
+  revalidatePath(`/members/${ms.memberId}`);
+  revalidatePath("/members");
+  revalidatePath("/dashboard");
+}
+
+/** Resume: add the days held to the end date and remember the total in frozenDays. */
+export async function resumeMembershipAction(membershipId: string) {
+  const ctx = await requireGym();
+  ctx.assert("members.manage");
+
+  const ms = await db.membership.findFirst({
+    where: { id: membershipId, gymId: ctx.gymId, cancelledAt: null, suspendedAt: { not: null } },
+  });
+  if (!ms || !ms.suspendedAt) return;
+
+  const heldDays = daysBetween(ms.suspendedAt, new Date());
+
+  await db.$transaction([
+    db.membership.update({
+      where: { id: ms.id },
+      data: {
+        suspendedAt: null,
+        endDate: addDaysUTC(ms.endDate, heldDays),
+        frozenDays: { increment: heldDays },
+      },
+    }),
+    db.auditLog.create({
+      data: {
+        gymId: ctx.gymId, userId: ctx.user.id, action: "membership.resume",
+        entity: "Membership", entityId: ms.id, meta: { heldDays },
+      },
+    }),
+  ]);
+  revalidatePath(`/members/${ms.memberId}`);
+  revalidatePath("/members");
+  revalidatePath("/dashboard");
 }

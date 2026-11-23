@@ -19,6 +19,7 @@ import { requireGym } from "@/lib/session";
 import { db } from "@/lib/db";
 import { daysLeft, membershipState } from "@/lib/membership";
 import { fmtDate, initials } from "@/lib/utils";
+import { daysBetween } from "@/lib/days";
 
 export const metadata = { title: "Members" };
 

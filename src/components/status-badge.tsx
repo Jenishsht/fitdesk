@@ -89,6 +89,8 @@ const STYLES: Record<string, { label: string; cls: string; dot: string }> = {
   EXPIRED:   { label: "Expired",   cls: "bg-red-50 text-red-700 ring-red-600/20",             dot: "bg-red-500" },
   EXPIRING:  { label: "Expiring",  cls: "bg-amber-50 text-amber-800 ring-amber-600/20",       dot: "bg-amber-500" },
   CANCELLED: { label: "Cancelled", cls: "bg-slate-100 text-slate-600 ring-slate-500/20",      dot: "bg-slate-400" },
+  FROZEN:    { label: "Frozen",    cls: "bg-sky-50 text-sky-700 ring-sky-600/20",          dot: "bg-sky-500" },
+  UPCOMING:  { label: "Upcoming",  cls: "bg-violet-50 text-violet-700 ring-violet-600/20", dot: "bg-violet-500" },
 };
 
 export function StatusBadge({ status }: { status: string }) {

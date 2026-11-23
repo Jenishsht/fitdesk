@@ -1,21 +1,8 @@
-
 import Link from "next/link";
 
 import { ActionForm, Field } from "@/components/action-form";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Empty, PageHeader } from "@/components/page-header";
 
 import { requireGym } from "@/lib/session";
@@ -29,37 +16,18 @@ export const metadata = {
 
 export default async function AttendancePage() {
   const { gymId, can } = await requireGym();
-
   const today = todayNepal();
 
   const [list, eligible] = await Promise.all([
     db.attendance.findMany({
-      where: {
-        gymId,
-        date: today,
-      },
-      orderBy: {
-        checkedInAt: "desc",
-      },
-      include: {
-        member: true,
-      },
+      where: { gymId, date: today },
+      orderBy: { checkedInAt: "desc" },
+      include: { member: true },
     }),
-
-    // Show all active members, even without a membership plan.
     db.member.findMany({
-      where: {
-        gymId,
-        status: "ACTIVE",
-      },
-      orderBy: {
-        fullName: "asc",
-      },
-      select: {
-        id: true,
-        fullName: true,
-        phone: true,
-      },
+      where: { gymId, status: "ACTIVE" },
+      orderBy: { fullName: "asc" },
+      select: { id: true, fullName: true, phone: true },
     }),
   ]);
 
@@ -70,11 +38,19 @@ export default async function AttendancePage() {
         description={`${list.length} checked in today`}
       />
 
+      {can("attendance.manage") && (
+        <div className="mb-4">
+          <Link href="/attendance/qr" className="text-sm font-medium underline">
+            Show check-in QR
+          </Link>
+        </div>
+      )}
+
       <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
-        {/* Today's Attendance */}
+        {/* Today's attendance */}
         <Card>
           <CardHeader>
-            <CardTitle>Today's Attendance</CardTitle>
+            <CardTitle>Today&apos;s Attendance</CardTitle>
           </CardHeader>
 
           {list.length === 0 ? (
@@ -88,7 +64,6 @@ export default async function AttendancePage() {
                   <TH>Source</TH>
                 </TR>
               </THead>
-
               <TBody>
                 {list.map((a) => (
                   <TR key={a.id}>
@@ -100,17 +75,13 @@ export default async function AttendancePage() {
                         {a.member.fullName}
                       </Link>
                     </TD>
-
                     <TD>
                       {new Intl.DateTimeFormat("en-GB", {
                         timeStyle: "short",
                         timeZone: "Asia/Kathmandu",
                       }).format(a.checkedInAt)}
                     </TD>
-
-                    <TD className="capitalize">
-                      {a.source.toLowerCase()}
-                    </TD>
+                    <TD className="capitalize">{a.source.toLowerCase()}</TD>
                   </TR>
                 ))}
               </TBody>
@@ -118,23 +89,19 @@ export default async function AttendancePage() {
           )}
         </Card>
 
-        {/* Manual Check-in */}
+        {/* Manual check-in */}
         {can("attendance.manage") && (
           <Card className="h-fit">
             <CardHeader>
               <CardTitle>Manual Check-in</CardTitle>
             </CardHeader>
-
             <CardContent>
               {eligible.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No active members found. Add a member first.
                 </p>
               ) : (
-                <ActionForm
-                  action={checkInAction}
-                  submitLabel="Check in"
-                >
+                <ActionForm action={checkInAction} submitLabel="Check in">
                   <Field label="Select active member">
                     <select
                       name="memberId"
@@ -145,7 +112,6 @@ export default async function AttendancePage() {
                       <option value="" disabled>
                         Choose a member
                       </option>
-
                       {eligible.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.fullName} · {m.phone}

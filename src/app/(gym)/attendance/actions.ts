@@ -10,21 +10,33 @@ import type { FormState } from "@/components/action-form";
 export async function checkInAction(_: FormState, fd: FormData): Promise<FormState> {
   const ctx = await requireGym();
   ctx.assert("attendance.manage");
-  const parsed = z.object({ memberId: z.string().min(1, "Choose a member") }).safeParse(Object.fromEntries(fd));
+
+  const parsed = z
+    .object({ memberId: z.string().min(1, "Choose a member") })
+    .safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+
   const today = todayNepal();
   const member = await db.member.findFirst({
     where: { id: parsed.data.memberId, gymId: ctx.gymId },
     include: { memberships: { where: activeWhere(today), take: 1 } },
   });
   if (!member) return { error: "Member not found." };
-  if (member.status !== "ACTIVE") return { error: `${member.fullName} is ${member.status.toLowerCase()}.` };
-  if (member.memberships.length === 0) return { error: `${member.fullName} has no active membership.` };
+  if (member.status !== "ACTIVE") {
+    return { error: `${member.fullName} is ${member.status.toLowerCase()}.` };
+  }
+  if (member.memberships.length === 0) {
+    return { error: `${member.fullName} has no active membership.` };
+  }
+
   try {
-    await db.attendance.create({ data: { gymId: ctx.gymId, memberId: member.id, date: today } });
+    await db.attendance.create({
+      data: { gymId: ctx.gymId, memberId: member.id, date: today, source: "MANUAL" },
+    });
   } catch {
     return { error: `${member.fullName} is already checked in today.` };
   }
+
   revalidatePath("/attendance");
   return { ok: `${member.fullName} checked in.` };
 }
