@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-
+import { ExpiryBanner } from "@/components/ExpiryBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,9 +124,18 @@ export default async function MemberDetail({
         <Card>
           <CardContent className="pt-5">
             <div className="flex items-center gap-3">
-              <span className="grid size-14 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
-                {initials(member.fullName)}
-              </span>
+              {member.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={member.photoUrl}
+                  alt={member.fullName}
+                  className="size-14 rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid size-14 place-items-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
+                  {initials(member.fullName)}
+                </span>
+              )}
 
               <div>
                 <StatusBadge status={member.status} />
@@ -208,7 +217,11 @@ export default async function MemberDetail({
                       {daysLeft(current.endDate)}
                     </p>
                   </div>
+                  
                 )}
+                                <div className="w-full">
+                  <ExpiryBanner endDate={current.endDate} />
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">

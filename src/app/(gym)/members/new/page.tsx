@@ -1,4 +1,3 @@
-
 import { ActionForm, Field } from "@/components/action-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,10 +22,7 @@ export default async function NewMemberPage() {
 
       <Card className="max-w-2xl">
         <CardContent className="pt-5">
-          <ActionForm
-            action={createMemberAction}
-            submitLabel="Save member"
-          >
+          <ActionForm action={createMemberAction} submitLabel="Save member">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Full name">
                 <Input name="fullName" required />
@@ -59,6 +55,24 @@ export default async function NewMemberPage() {
 
               <Field label="Emergency contact">
                 <Input name="emergencyContact" />
+              </Field>
+
+              <Field label="Date of birth (optional)">
+                <Input name="dateOfBirth" type="date" />
+              </Field>
+
+              <Field label="Joined on (optional)">
+                <Input name="joinedAt" type="date" />
+              </Field>
+
+              <Field label="Photo (optional)">
+                <input
+                  type="file"
+                  name="photo"
+                  accept="image/*"
+                  capture="user"
+                  className="block w-full text-sm"
+                />
               </Field>
             </div>
 

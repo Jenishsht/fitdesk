@@ -7,7 +7,7 @@ const TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
 };
-const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_BYTES = 4 * 1024 * 1024; // must stay under bodySizeLimit (5mb)
 
 export async function saveMemberPhoto(
   file: FormDataEntryValue | null
@@ -15,7 +15,7 @@ export async function saveMemberPhoto(
   if (!(file instanceof File) || file.size === 0) return {};
   const ext = TYPES[file.type];
   if (!ext) return { error: "Photo must be a JPG, PNG or WebP image." };
-  if (file.size > MAX_BYTES) return { error: "Photo must be under 2 MB." };
+  if (file.size > MAX_BYTES) return { error: "Photo must be under 4 MB." };
 
   const dir = path.join(process.cwd(), "public", "uploads", "members");
   await mkdir(dir, { recursive: true });

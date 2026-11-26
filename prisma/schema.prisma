@@ -65,6 +65,7 @@ enum NotificationType {
   PAYMENT_REMINDER
   PAYMENT_OVERDUE_REMINDER
   RENEWAL_CONFIRMATION
+  WEEKLY_REPORT
 }
 
 enum NotificationStatus {

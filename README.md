@@ -50,3 +50,19 @@ Next phases (schema is already in place): forgot/reset password + email verifica
 # fitdesk
 gym management 
 >>>>>>> 30c79db7be1f11be16165cd6fca03aca0d7e864f
+
+# like for the qr. we need to  run this  2nd terminal
+<!-- loudflared tunnel --url http://localhost:3000 -->
+ #  change the url or that next_base..in env file and th it wook 
+<!-- Quick checklist for deploy day:
+
+Deactivate IP blocking at https://app.brevo.com/security/authorised_ips (enter the verification code if asked, then refresh the page to confirm it says deactivated).
+Make a new CRON_SECRET with openssl rand -hex 32.
+Add all four variables on your host: DATABASE_URL, BREVO_API_KEY, BREVO_SENDER_EMAIL, CRON_SECRET.
+Use an online database (Neon, Supabase, or Railway).
+Set the build command to prisma generate && next build.
+Add the daily schedule (vercel.json or cron-job.org).
+After deploying, run the curl once with your live URL to confirm emails send.   
+
+^Z^C
+jenishshrestha@macbookair fitdesk % curl -H "Authorization: Bearer b52a78f37cf35c664d9eddaaff6884b14c8deba2be433fd5" http://localhost:3000/api/cron/expiry-reminders -->

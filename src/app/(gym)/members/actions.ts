@@ -17,6 +17,8 @@ const memberSchema = z.object({
   gender: z.string().optional(),
   emergencyContact: z.string().optional(),
   notes: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  joinedAt: z.string().optional(),
 });
 
 export async function createMemberAction(_: FormState, fd: FormData): Promise<FormState> {
@@ -24,15 +26,30 @@ export async function createMemberAction(_: FormState, fd: FormData): Promise<Fo
   ctx.assert("members.manage");
   const parsed = memberSchema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const d = parsed.data;
-  const dup = await db.member.findUnique({ where: { gymId_phone: { gymId: ctx.gymId, phone: d.phone } } });
+  const { dateOfBirth, joinedAt, ...d } = parsed.data;
+
+  // store digits only, so QR check-in matching always works
+  const phone = d.phone.replace(/\D/g, "");
+  if (phone.length < 7) return { error: "Enter a valid phone number." };
+
+  const dup = await db.member.findUnique({
+    where: { gymId_phone: { gymId: ctx.gymId, phone } },
+  });
   if (dup) return { error: "A member with this phone number already exists." };
 
   const photo = await saveMemberPhoto(fd.get("photo"));
   if (photo.error) return { error: photo.error };
 
   const m = await db.member.create({
-    data: { ...d, email: d.email || null, photoUrl: photo.url ?? null, gymId: ctx.gymId, joinedAt: todayNepal() },
+    data: {
+      ...d,
+      phone,
+      email: d.email || null,
+      photoUrl: photo.url ?? null,
+      gymId: ctx.gymId,
+      dateOfBirth: dateOfBirth ? new Date(`${dateOfBirth}T00:00:00.000Z`) : null,
+      joinedAt: joinedAt ? new Date(`${joinedAt}T00:00:00.000Z`) : todayNepal(),
+    },
   });
   revalidatePath("/members");
   redirect(`/members/${m.id}`);

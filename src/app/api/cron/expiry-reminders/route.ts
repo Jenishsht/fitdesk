@@ -1,207 +1,130 @@
-
-import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { fmtDate } from "@/lib/utils";
-import { normalizePhone, sendTemplate } from "@/lib/whatsapp";
+import { prisma } from "@/lib/prisma";
+import { sendEmail } from "@/lib/email";
+import { todayNepal, daysUntil } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
-// Nepal is UTC +5:45.
-const DAY_MS = 24 * 60 * 60 * 1000;
-const NEPAL_OFFSET_MS = (5 * 60 + 45) * 60 * 1000;
+const THRESHOLDS = [1, 3, 7];
 
-/**
- * Returns today's Nepal calendar date as UTC midnight.
- * This matches Prisma DateTime fields stored with @db.Date.
- */
-function getNepalToday(): Date {
-  const nepalNow = new Date(Date.now() + NEPAL_OFFSET_MS);
-
-  return new Date(
-    Date.UTC(
-      nepalNow.getUTCFullYear(),
-      nepalNow.getUTCMonth(),
-      nepalNow.getUTCDate()
-    )
+function greeting() {
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      hourCycle: "h23",
+      timeZone: "Asia/Kathmandu",
+    }).format(new Date())
   );
-}
-
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 export async function GET(req: Request) {
-  // Protect the cron endpoint.
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (
-    !cronSecret ||
-    req.headers.get("authorization") !== `Bearer ${cronSecret}`
-  ) {
-    return NextResponse.json(
-      { error: "Unauthorized" },
-      { status: 401 }
-    );
+  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response("Unauthorized", { status: 401 });
   }
 
-  const days = Number(process.env.REMINDER_DAYS) || 4;
+  const today = todayNepal();
+  const in7 = new Date(today.getTime() + 7 * 86400000);
 
-  if (!Number.isInteger(days) || days < 0) {
-    return NextResponse.json(
-      { error: "REMINDER_DAYS must be a non-negative integer" },
-      { status: 500 }
-    );
-  }
-
-  // Nepal calendar date.
-  const today = getNepalToday();
-
-  // Include memberships expiring today through the next 4 days.
-  const target = new Date(today.getTime() + days * DAY_MS);
-
-  const todayKey = dateKey(today);
-
-  const memberships = await db.membership.findMany({
+  const memberships = await prisma.membership.findMany({
     where: {
-      endDate: {
-        gte: today,
-        lte: target,
-      },
+      endDate: { gte: today, lte: in7 },
       cancelledAt: null,
       suspendedAt: null,
-      member: {
-        status: "ACTIVE",
-      },
+      renewals: { none: {} },
+      member: { email: { not: null }, status: "ACTIVE" },
+      gym: { status: "ACTIVE" },
     },
-    include: {
-      member: true,
-      plan: true,
-      gym: true,
-    },
+    include: { member: true, gym: true, plan: true },
   });
 
   let sent = 0;
-  let failed = 0;
   let skipped = 0;
+  let failed = 0;
+  const errors: string[] = [];
 
-  for (const ms of memberships) {
-    // Calculate actual remaining days for this membership.
-    const daysLeft = Math.round(
-      (ms.endDate.getTime() - today.getTime()) / DAY_MS
-    );
+  for (const m of memberships) {
+    const daysLeft = daysUntil(m.endDate, today);
 
-    // One reminder per membership per Nepal calendar day.
-    const dedupeKey =
-      `EXPIRY_REMINDER:${ms.id}:${todayKey}`;
+    // smallest threshold that still covers daysLeft
+    const threshold = THRESHOLDS.find((t) => t >= daysLeft);
+    if (!threshold) {
+      skipped++;
+      continue;
+    }
 
+    // skip reminders longer than the plan itself (no "7 days left" on a 3-day plan)
+    if (threshold >= m.plan.durationDays) {
+      skipped++;
+      continue;
+    }
+
+    const dedupeKey = `EXPIRY_${threshold}D:${m.id}`;
+
+    // claim the slot first; unique [gymId, dedupeKey] blocks duplicates
     try {
-      const existing = await db.notificationLog.findUnique({
-        where: {
-          gymId_dedupeKey: {
-            gymId: ms.gymId,
-            dedupeKey,
-          },
+      await prisma.notificationLog.create({
+        data: {
+          gymId: m.gymId,
+          memberId: m.memberId,
+          type: "EXPIRY_REMINDER",
+          channel: "EMAIL",
+          dedupeKey,
         },
       });
+    } catch {
+      skipped++;
+      continue; // already sent
+    }
 
-      // Already queued, sent, delivered or read: do not send again.
-      if (existing && existing.status !== "FAILED") {
-        skipped++;
-        continue;
-      }
+    const when =
+      daysLeft === 0 ? "today" : daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`;
 
-      let logId: string;
+    const endDateText = m.endDate.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
 
-      if (existing) {
-        // Retry a previously failed notification.
-        logId = existing.id;
+    const contactLine = m.gym.phone
+      ? `You can renew by visiting the gym or calling us at ${m.gym.phone}.`
+      : `You can renew by visiting the gym.`;
 
-        await db.notificationLog.update({
-          where: { id: logId },
-          data: {
-            status: "QUEUED",
-            error: null,
-          },
-        });
-      } else {
-        const created = await db.notificationLog.create({
-          data: {
-            gymId: ms.gymId,
-            memberId: ms.memberId,
-            type: "EXPIRY_REMINDER",
-            channel: "WHATSAPP",
-            status: "QUEUED",
-            dedupeKey,
-          },
-        });
-
-        logId = created.id;
-      }
-
-      const to = normalizePhone(ms.member.phone);
-
-      if (!to) {
-        await db.notificationLog.update({
-          where: { id: logId },
-          data: {
-            status: "FAILED",
-            error: "Invalid phone number",
-          },
-        });
-
-        failed++;
-        continue;
-      }
-
-      // Send approved WhatsApp template.
-      const result = await sendTemplate(
-        to,
-        "membership_expiry_reminder",
-        [
-          ms.member.fullName,
-          ms.plan.name,
-          ms.gym.name,
-          fmtDate(ms.endDate),
-          String(daysLeft),
-        ]
-      );
-
-      await db.notificationLog.update({
-        where: { id: logId },
-        data: result.ok
-          ? {
-              status: "SENT",
-              providerMessageId: result.id,
-              error: null,
-            }
-          : {
-              status: "FAILED",
-              error: result.error,
-            },
+    try {
+      await sendEmail({
+        to: m.member.email!,
+        toName: m.member.fullName,
+        fromName: m.gym.name,
+        subject: `Your ${m.plan.name} membership expires ${when}`,
+        text:
+          `${greeting()} ${m.member.fullName},\n\n` +
+          `This is a kind reminder that your ${m.plan.name} membership at ${m.gym.name} ` +
+          `will expire ${when} (${endDateText}).\n\n` +
+          `To continue enjoying uninterrupted access to our facilities and keep up your ` +
+          `fitness progress, please renew your membership on time.\n\n` +
+          `${contactLine}\n\n` +
+          `Thank you for being a valued member of ${m.gym.name}.\n\n` +
+          `Warm regards,\n` +
+          `${m.gym.name} Team`,
       });
 
-      if (result.ok) {
-        sent++;
-      } else {
-        failed++;
-      }
-    } catch (error) {
-      console.error(
-        `Expiry reminder failed for membership ${ms.id}:`,
-        error
-      );
-
+      await prisma.notificationLog.update({
+        where: { gymId_dedupeKey: { gymId: m.gymId, dedupeKey } },
+        data: { status: "SENT" },
+      });
+      sent++;
+    } catch (e) {
+      const msg = String(e).slice(0, 500);
+      await prisma.notificationLog.update({
+        where: { gymId_dedupeKey: { gymId: m.gymId, dedupeKey } },
+        data: { status: "FAILED", error: msg },
+      });
+      errors.push(msg);
       failed++;
     }
   }
 
-  return NextResponse.json({
-    success: true,
-    today: todayKey,
-    reminderWindow: `0-${days} days`,
-    found: memberships.length,
-    sent,
-    failed,
-    skipped,
-  });
+  return Response.json({ checked: memberships.length, sent, skipped, failed, errors });
 }

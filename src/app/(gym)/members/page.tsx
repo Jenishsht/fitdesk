@@ -5,21 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/status-badge";
-import {
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from "@/components/ui/table";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Empty, PageHeader } from "@/components/page-header";
 
 import { requireGym } from "@/lib/session";
 import { db } from "@/lib/db";
 import { daysLeft, membershipState } from "@/lib/membership";
 import { fmtDate, initials } from "@/lib/utils";
-import { daysBetween } from "@/lib/days";
 
 export const metadata = { title: "Members" };
 
@@ -41,8 +33,7 @@ export default async function MembersPage({
 
   const where = {
     gymId,
-    ...(sp.status &&
-    ["ACTIVE", "INACTIVE", "SUSPENDED"].includes(sp.status)
+    ...(sp.status && ["ACTIVE", "INACTIVE", "SUSPENDED"].includes(sp.status)
       ? { status: sp.status as "ACTIVE" | "INACTIVE" | "SUSPENDED" }
       : {}),
     ...(sp.q
@@ -160,6 +151,16 @@ export default async function MembersPage({
                 {members.map((m) => {
                   const ms = m.memberships[0];
                   const state = ms ? membershipState(ms) : null;
+                  const left = ms ? daysLeft(ms.endDate) : null;
+
+                  const leftClass =
+                    left === null
+                      ? ""
+                      : left <= 1
+                      ? "text-xs font-semibold text-red-600"
+                      : left <= 7
+                      ? "text-xs font-semibold text-yellow-600"
+                      : "text-xs text-muted-foreground";
 
                   return (
                     <TR key={m.id}>
@@ -207,10 +208,8 @@ export default async function MembersPage({
                         {ms ? (
                           <>
                             {fmtDate(ms.endDate)}
-                            {state === "ACTIVE" && (
-                              <span className="text-xs text-muted-foreground">
-                                {" "}({daysLeft(ms.endDate)}d)
-                              </span>
+                            {state === "ACTIVE" && left !== null && (
+                              <span className={leftClass}> ({left}d)</span>
                             )}
                           </>
                         ) : (
